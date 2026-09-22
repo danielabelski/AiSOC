@@ -1,0 +1,148 @@
+# Dependency vulnerability ignore list for AiSOC CI.
+#
+# Format: tool|ID|reason|YYYY-MM-DD
+#   tool   — pnpm, python, or go
+#   ID     — CVE-YYYY-NNNNN, GHSA-xxxx-xxxx-xxxx, GO-YYYY-NNNN, or PYSEC-YYYY-N
+#   reason — why this ignore is acceptable (required, no blanks)
+#   expiry — date this ignore expires (max 90 days from today)
+#
+# Example:
+# python|CVE-2026-12345|Upstream fix not released; tracked in issue #123|2026-07-15
+
+# ── 2026-09-21 re-triage ─────────────────────────────────────────────────────
+# The 2026-05-28 batch expired on 2026-08-25 and the 2026-06-27 batch was four
+# days from expiry, so both were re-checked against OSV and against the
+# versions the lockfiles actually resolve — not against the claims in the
+# superseded reason strings, several of which had gone stale (e.g.
+# "serialize-javascript 6.0.2 is latest" and "fastapi<0.137 cap in
+# services/api" were both no longer true).
+#
+# Anything with a reachable patched release was FIXED rather than re-ignored:
+#   • pnpm.overrides in the root package.json now pin patched versions of
+#     serialize-javascript, fast-uri, @babel/plugin-transform-modules-systemjs,
+#     browserslist, js-yaml, svgo, sharp, brace-expansion, ip-address and
+#     websocket-driver; apps/web moved to next 16.3.4. That took pnpm from 66
+#     advisories / 28 high+critical to 34 / 2, and retired 23 of the 25 pnpm
+#     suppressions below.
+#   • services/connectors, services/fusion, services/threatintel and
+#     services/osquery-tls still carried caret pins (fastapi ^0.109.0 /
+#     ^0.111.0) that held them on starlette 0.36.3. They now use the same
+#     >=0.109,<0.142 range as api/agents/actions, which resolves a clean
+#     starlette, so CVE-2024-47874 (fixed 0.40.0) and CVE-2025-54121
+#     (fixed 0.47.2) were dropped rather than suppressed.
+#
+# What remains is the set with no reachable fix: either upstream has published
+# none, or the fix sits behind a major migration that needs its own PR.
+
+# starlette — services/slack-bot and services/teams-bot still cap fastapi
+# <0.137, which resolves fastapi 0.136.1 / starlette 1.0.0. services/api,
+# services/agents and services/actions have already moved to <0.142 and
+# resolve starlette 1.3.1, which is clean. Clearing these needs the two bot
+# services off the <0.137 cap, which moves their Bolt / Bot-Framework adapter
+# surface, so it is tracked as a dedicated PR rather than an audit unblock.
+# Both CVE and GHSA forms are listed because pip-audit may report either as
+# the primary id depending on the advisory source.
+python|PYSEC-2026-161|starlette Host-header path poisoning (fixed 1.0.1); slack-bot/teams-bot resolve 1.0.0 under their fastapi<0.137 cap; tracked for the bot-service fastapi bump|2026-12-19
+python|CVE-2026-48817|starlette HTTPEndpoint dispatch via getattr (fixed 1.1.0); slack-bot/teams-bot resolve 1.0.0 under their fastapi<0.137 cap; tracked for the bot-service fastapi bump|2026-12-19
+python|GHSA-x746-7m8f-x49c|starlette HTTPEndpoint dispatch via getattr (fixed 1.1.0); slack-bot/teams-bot resolve 1.0.0 under their fastapi<0.137 cap; tracked for the bot-service fastapi bump|2026-12-19
+python|CVE-2026-48818|starlette SSRF via UNC paths on Windows (fixed 1.1.0); Linux-only deployment; slack-bot/teams-bot capped at starlette 1.0.0 by fastapi<0.137|2026-12-19
+python|GHSA-wqp7-x3pw-xc5r|starlette SSRF via UNC paths on Windows (fixed 1.1.0); Linux-only deployment; slack-bot/teams-bot capped at starlette 1.0.0 by fastapi<0.137|2026-12-19
+python|CVE-2026-54282|starlette hostname poisoning (low; fixed 1.3.0); slack-bot/teams-bot capped at starlette 1.0.0 by fastapi<0.137; tracked for the bot-service fastapi bump|2026-12-19
+python|GHSA-jp82-jpqv-5vv3|starlette hostname poisoning (low; fixed 1.3.0); slack-bot/teams-bot capped at starlette 1.0.0 by fastapi<0.137; tracked for the bot-service fastapi bump|2026-12-19
+python|CVE-2026-54283|starlette urlencoded form DoS (fixed 1.3.1); slack-bot/teams-bot capped at starlette 1.0.0 by fastapi<0.137; tracked for the bot-service fastapi bump|2026-12-19
+python|GHSA-82w8-qh3p-5jfq|starlette urlencoded form DoS (fixed 1.3.1); slack-bot/teams-bot capped at starlette 1.0.0 by fastapi<0.137; tracked for the bot-service fastapi bump|2026-12-19
+
+# idna — CVE-2026-45409 is fixed in 3.15. services/agents (3.18) and
+# services/teams-bot (3.15) are already clean; services/slack-bot still
+# resolves 3.13 through its own lock. It is a leaf transitive dep, so the fix
+# is a plain lock refresh on that one service — tracked, not a code change.
+python|CVE-2026-45409|idna punycode DoS (fixed 3.15); only services/slack-bot still resolves 3.13; leaf transitive dep, tracked for a slack-bot lock refresh|2026-12-19
+
+# langchain / langgraph — every one of these is fixed only in a release line
+# that our pins cannot reach: langchain-openai is capped <0.4.0 (fix landed in
+# 1.1.14), langchain <0.4.0 (fix in 1.3.9), langgraph <1.1.0 (langgraph-sdk fix
+# in 0.3.15 and langgraph-checkpoint fix in 4.1.1 both sit behind the langgraph
+# 4.x major). Those are breaking-API migrations that need their own PR with
+# regression coverage; folding them into a dependency-audit unblock is exactly
+# the kind of change that should not ride along unreviewed.
+python|PYSEC-2026-76|langchain-openai 0.3.35 (fixed 1.1.14); unreachable under the <0.4.0 cap, needs the langchain 0.3 to 1.x migration; tracked for a dedicated PR|2026-12-19
+python|PYSEC-2026-77|langchain-text-splitters 0.3.11 (fixed 1.1.2); transitive under langchain <0.4.0, needs the langchain 0.3 to 1.x migration; tracked for a dedicated PR|2026-12-19
+python|PYSEC-2026-83|langgraph 1.0.1 (fixed 1.0.10); reachable inside the <1.1.0 cap but the agents lock needs a coordinated langgraph refresh; tracked for a dedicated PR|2026-12-19
+python|CVE-2026-27794|langgraph-checkpoint 3.0.1 (fixed 4.0.0); requires the langgraph 4.x major bump; tracked for a dedicated PR|2026-12-19
+python|GHSA-gr75-jv2w-4656|langchain path traversal in file-search middleware (fixed 1.3.9); requires the langchain 0.3 to 1.3 major bump; tracked for a dedicated PR|2026-12-19
+python|CVE-2026-48775|langgraph-checkpoint unsafe JSON deserialization (fixed 4.1.1); requires the langgraph 4.x major bump; tracked for a dedicated PR|2026-12-19
+python|GHSA-fjqc-hq36-qh5p|langgraph-checkpoint unsafe JSON deserialization (fixed 4.1.1); requires the langgraph 4.x major bump; tracked for a dedicated PR|2026-12-19
+python|CVE-2026-48776|langgraph-sdk unsafe URL path construction (fixed 0.3.15); transitive via langgraph, blocked by the same major bump as CVE-2026-48775|2026-12-19
+python|GHSA-w39p-vh2g-g8g5|langgraph-sdk unsafe URL path construction (fixed 0.3.15); transitive via langgraph, blocked by the same major bump as CVE-2026-48775|2026-12-19
+
+# weasyprint / anyio — both come from services/agents, which is one of the three
+# services carrying a committed poetry.lock, so widening the pyproject range does
+# not move them: `poetry export` replays the lock. weasyprint 70.0 and anyio
+# 4.15.1 both exist and both fix these, so the remediation is a lock refresh on
+# that one service, which dependabot already covers via the pip/services/agents
+# entry in .github/dependabot.yml. Deliberately not hand-editing the lock.
+# The api service (no lock) is handled by widening its weasyprint pin in #636.
+# Both CVE and GHSA forms are listed since pip-audit may report either.
+python|PYSEC-2026-3940|weasyprint 69.0 SSRF (fixed 70.0); pinned by the committed services/agents lock, needs a lock refresh; api is covered separately by the <71 pin bump|2026-12-19
+python|CVE-2026-55073|weasyprint 69.0 SSRF (fixed 70.0); pinned by the committed services/agents lock, needs a lock refresh; api is covered separately by the <71 pin bump|2026-12-19
+python|GHSA-jf6q-chmf-3h3v|weasyprint 69.0 SSRF (fixed 70.0); pinned by the committed services/agents lock, needs a lock refresh; api is covered separately by the <71 pin bump|2026-12-19
+python|CVE-2026-63349|anyio 4.14.1 run_process ignores extra_groups (fixed 4.15.1); pinned by the committed services/agents lock, needs a lock refresh|2026-12-19
+python|GHSA-3w57-8xmc-8v26|anyio 4.14.1 run_process ignores extra_groups (fixed 4.15.1); pinned by the committed services/agents lock, needs a lock refresh|2026-12-19
+python|CVE-2026-64847|anyio 4.14.1 process-pool workers block on undrained stderr (fixed 4.15.1); pinned by the committed services/agents lock, needs a lock refresh|2026-12-19
+python|GHSA-5p39-cfhj-2xmp|anyio 4.14.1 process-pool workers block on undrained stderr (fixed 4.15.1); pinned by the committed services/agents lock, needs a lock refresh|2026-12-19
+python|CVE-2026-63374|anyio 4.14.1 advisory co-resolving with CVE-2026-63349/64847 (fixed 4.15.1); pinned by the committed services/agents lock, needs a lock refresh|2026-12-19
+
+# pydantic-settings — fixed in 2.14.2. services/agents already resolves 2.14.2;
+# services/slack-bot and services/teams-bot still resolve 2.14.1 through their
+# own locks. Patch-level bump, waiting on a lock refresh for those two.
+python|GHSA-4xgf-cpjx-pc3j|pydantic-settings symlink follow (fixed 2.14.2); agents is clean, slack-bot/teams-bot still resolve 2.14.1; tracked for a lock refresh|2026-12-19
+
+# ── 2026-07-11 triage (expire 2026-10-05) ────────────────────────────────────
+# ecdsa 0.19.2 is the latest published release (2026-03-26) and already carries
+# the CVE-2026-33936 DER-parsing fix. PYSEC-2026-1325 still flags 0.19.2, so
+# there is no newer release to upgrade to. ecdsa is a hard transitive dependency
+# of python-jose[cryptography] (pulled in regardless of the crypto extra) used by
+# the API JWT layer; it is never used to parse untrusted attacker-supplied DER
+# private keys. Removing it requires migrating the auth layer off python-jose to
+# PyJWT (already a dep) — a regression-prone change tracked for a dedicated PR.
+python|PYSEC-2026-1325|ecdsa 0.19.2 is latest release; no patched version available; transitive via python-jose[cryptography]; tracked for python-jose to PyJWT migration|2026-10-05
+
+# ── 2026-07-13 triage (expire 2026-10-11) ────────────────────────────────────
+# langchain-core prompt-loading path traversal (langchain_core.prompts.loading
+# reads files from paths in deserialized config dicts). Fixed only in
+# langchain-core 1.2.22 — a major bump from our pinned 0.3.x line with breaking
+# API changes, blocked by the same langchain 0.3 → 1.x migration tracked above
+# (GHSA-gr75-jv2w-4656 et al.). The vulnerable prompts.loading module is not
+# imported anywhere in this codebase (verified via repo-wide grep).
+# Both PYSEC and GHSA forms listed since pip-audit may report either as primary.
+python|PYSEC-2026-2193|langchain-core prompts.loading path traversal (fixed in 1.2.22); requires langchain 0.3 → 1.x major bump, module unused in codebase; tracked with langchain migration PR|2026-10-11
+python|GHSA-qh6h-p6c9-ff54|langchain-core prompts.loading path traversal (fixed in 1.2.22); requires langchain 0.3 → 1.x major bump, module unused in codebase; tracked with langchain migration PR|2026-10-11
+
+# langchain-core SSRF via image_url token counting in
+# ChatOpenAI.get_num_tokens_from_messages (low severity, freshly disclosed).
+# Fixed only in langchain-core 1.2.11 — same langchain 0.3 → 1.x major bump as
+# the entries above. The affected method is not called anywhere in this
+# codebase (verified via repo-wide grep for get_num_tokens_from_messages /
+# image_url), so no untrusted image URL ever reaches it.
+python|PYSEC-2026-2562|langchain-core SSRF in ChatOpenAI.get_num_tokens_from_messages (low; fixed in 1.2.11); requires langchain 0.3 → 1.x major bump, method unused in codebase; tracked with langchain migration PR|2026-10-11
+python|GHSA-2g6r-c272-w58r|langchain-core SSRF in ChatOpenAI.get_num_tokens_from_messages (low; fixed in 1.2.11); requires langchain 0.3 → 1.x major bump, method unused in codebase; tracked with langchain migration PR|2026-10-11
+
+# ── 2026-07-30 / 2026-08-04 triage (expire 2026-10-28) ───────────────────────
+# Python-side advisories held by version caps that need cross-service compat
+# testing. The pnpm entries that used to live in this block were retired by the
+# 2026-09-21 override pass above.
+python|CVE-2026-69247|cryptography high (48.0.1/49.0.0); fixed in 50.0.0 but held by the <50 and <49 version caps across services (49 to 50 is a major bump needing cross-service compat testing); tracked for a dedicated dependency PR|2026-10-28
+python|CVE-2026-69248|cryptography high (48.0.1); fixed in 50.0.0, held by the <50/<49 major-version caps; tracked for a dedicated dependency PR|2026-10-28
+python|CVE-2026-69249|cryptography high (48.0.1); fixed in 50.0.0, held by the <50/<49 major-version caps; tracked for a dedicated dependency PR|2026-10-28
+python|CVE-2026-59881|aiohttp high (3.14.1); fixed in 3.14.3 within the <4.0 cap; patch bump tracked for the next poetry lock refresh|2026-10-28
+python|CVE-2026-69243|aiohttp high (3.14.1); fixed in 3.14.3 within the <4.0 cap; patch bump tracked for the next poetry lock refresh|2026-10-28
+python|CVE-2026-69244|aiohttp high (3.14.1); fixed in 3.14.3 within the <4.0 cap; patch bump tracked for the next poetry lock refresh|2026-10-28
+
+# ── 2026-08-11 triage (expire 2026-11-05) ────────────────────────────────────
+# image-size is the one pnpm advisory pair with genuinely no fix: the GitHub
+# advisory records patched_versions as "<0.0.0", i.e. no released version is
+# clean, so an override has nothing to point at. Build-time only (the next
+# image pipeline), never fed untrusted input at runtime.
+pnpm|GHSA-5p2g-fcmc-qvqq|image-size 2.0.2; advisory reports no patched release (patched_versions "<0.0.0"), so an override has no clean target; build-time dep in the next image pipeline|2026-11-05
+pnpm|GHSA-w3rx-r6r6-pgpr|image-size 2.0.2; co-resolves with GHSA-5p2g, same absence of a patched release; build-time dep in the next image pipeline|2026-11-05
+python|CVE-2026-71554|h2 4.3.0 HTTP/2 advisory; transitive (httpx/httpcore + aiohttp stack); tracked for the next lock refresh|2026-11-05
